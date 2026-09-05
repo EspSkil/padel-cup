@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b2f57" />
+  <title>Padel Cup</title>
+  <style>
+    :root{
+      --navy:#0b2f57;
+      --navy2:#123f73;
+      --blue:#1976d2;
+      --green:#19a957;
+      --green2:#0f8f46;
+      --bg:#f4f7fb;
+      --card:#ffffff;
+      --text:#10233f;
+      --muted:#68778a;
+      --line:#dbe3ec;
+      --softblue:#eaf4ff;
+      --softgreen:#eaf9ef;
+      --gold:#f6bd16;
+      --silver:#b8c1cc;
+      --bronze:#c97832;
+      --danger:#b43a3a;
+      --shadow:0 8px 28px rgba(14,44,80,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:linear-gradient(180deg,#eaf0f7 0,#f7f9fc 280px);
+      color:var(--text);
+    }
+    button,input{font:inherit}
+    button{cursor:pointer}
+    .app{
+      max-width:520px;
+      min-height:100vh;
+      margin:0 auto;
+      background:var(--bg);
+      box-shadow:0 0 45px rgba(7,36,70,.12);
+      position:relative;
+      padding-bottom:92px;
+    }
+    header{
+      background:linear-gradient(135deg,var(--navy),var(--navy2));
+      color:white;
+      padding:22px 18px 20px;
+      border-radius:0 0 26px 26px;
+      position:sticky;
+      top:0;
+      z-index:20;
+      box-shadow:0 6px 18px rgba(8,40,76,.18);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      justify-content:center;
+    }
+    .racket{
+      width:46px;height:46px;border:3px solid white;border-radius:50% 50% 44% 44%;
+      position:relative;transform:rotate(-35deg);opacity:.95;
+    }
+    .racket:after{
+      content:"";position:absolute;width:6px;height:26px;background:white;border-radius:8px;
+      left:17px;top:39px;
+    }
+    .racket:before{
+      content:"···\A···\A···";white-space:pre;position:absolute;inset:5px;text-align:center;
+      line-height:8px;font-weight:900;letter-spacing:1px;transform:rotate(35deg);font-size:15px;
+    }
+    header h1{margin:0;font-size:30px;letter-spacing:-.5px}
+    header p{margin:3px 0 0;text-align:center;font-size:13px;opacity:.88}
+    main{padding:16px}
+    .page{display:none}
+    .page.active{display:block}
+    .card{
+      background:var(--card);
+      border:1px solid #e5ebf2;
+      border-radius:var(--radius);
+      padding:16px;
+      box-shadow:var(--shadow);
+      margin-bottom:14px;
+    }
+    .hero{
+      background:linear-gradient(135deg,#edf7ff,#f8fbff);
+      border:1px solid #dbeeff;
+      display:flex;gap:13px;align-items:flex-start;
+    }
+    .hero .icon{
+      width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
+      background:#dfefff;color:#1263bc;font-size:25px;flex:none;
+    }
+    h2{font-size:22px;margin:0 0 6px}
+    h3{font-size:17px;margin:0}
+    .sub{color:var(--muted);font-size:14px;line-height:1.45}
+    .player-list{display:grid;gap:10px}
+    .player-row{display:grid;grid-template-columns:42px 1fr;gap:9px;align-items:center}
+    .num{
+      height:46px;border-radius:12px;background:#edf1f6;display:grid;place-items:center;
+      font-weight:800;color:#637085;
+    }
+    input[type="text"]{
+      width:100%;height:46px;border:1px solid #cfd8e3;border-radius:12px;padding:0 14px;
+      background:white;color:var(--text);outline:none;
+    }
+    input[type="text"]:focus{border-color:#76aee9;box-shadow:0 0 0 3px rgba(25,118,210,.09)}
+    .primary{
+      width:100%;border:0;border-radius:14px;background:linear-gradient(135deg,var(--green),var(--green2));
+      color:white;font-weight:800;padding:15px 16px;font-size:16px;box-shadow:0 8px 18px rgba(17,146,73,.20);
+    }
+    .secondary{
+      border:1px solid #cfd8e3;background:white;color:var(--text);font-weight:700;
+      border-radius:12px;padding:10px 12px;
+    }
+    .danger{
+      border:1px solid #f0c7c7;background:#fff7f7;color:var(--danger);font-weight:700;
+      border-radius:12px;padding:10px 12px;
+    }
+    .hint{
+      background:#eaf5ff;border:1px solid #d5ebff;border-radius:15px;padding:12px 13px;
+      color:#315b88;font-size:13px;line-height:1.45;margin-top:12px;
+    }
+    .round-card{padding:14px 15px}
+    .round-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .round-title{font-weight:900;font-size:22px}
+    .round-nav{display:flex;gap:8px}
+    .round-nav button{width:38px;height:38px;border-radius:10px;border:1px solid #d6dee8;background:white;font-weight:900;color:var(--navy)}
+    .progress{
+      margin-top:11px;height:9px;border-radius:100px;background:#e2e8ef;overflow:hidden;
+    }
+    .progress span{display:block;height:100%;background:linear-gradient(90deg,#27b66b,#1a9a57);border-radius:inherit}
+    .progress-label{display:flex;justify-content:space-between;margin-top:7px;font-size:12px;color:var(--muted)}
+    .court{
+      border:1px solid #dce4ec;border-radius:18px;padding:14px;margin-bottom:12px;background:#fff;
+    }
+    .court-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .court-title strong{font-size:17px}
+    .court-title span{font-size:13px;color:var(--muted);font-weight:700}
+    .teams{display:grid;grid-template-columns:1fr 34px 1fr;gap:8px;align-items:center}
+    .team{
+      min-height:92px;border-radius:15px;padding:14px 8px;display:grid;place-items:center;text-align:center;
+      font-weight:800;line-height:1.35;
+    }
+    .team.a{background:linear-gradient(135deg,#e6f3ff,#d9eeff)}
+    .team.b{background:linear-gradient(135deg,#ebfaef,#dff7e7)}
+    .vs{text-align:center;font-weight:900;color:#78889b}
+    .scoreline{
+      margin-top:12px;display:grid;grid-template-columns:1fr 28px 1fr;gap:8px;align-items:center;
+    }
+    .score-control{display:grid;grid-template-columns:42px 1fr 42px;gap:7px;align-items:center}
+    .score-control button{
+      height:44px;border:0;border-radius:11px;background:#e7edf4;font-size:24px;font-weight:900;color:#193a5f;
+    }
+    .score{
+      height:44px;border:1px solid #ccd7e2;border-radius:11px;display:grid;place-items:center;background:white;
+      font-size:22px;font-weight:900;
+    }
+    .dash{text-align:center;color:#8290a0;font-weight:900}
+    .saved-badge{
+      display:inline-flex;align-items:center;gap:6px;background:#e7f8ec;color:#167840;
+      border:1px solid #ccefd7;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;
+    }
+    .round-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+    .round-actions .primary{grid-column:1/-1}
+    .podium-card{overflow:hidden}
+    .podium-title{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+    .podium{height:220px;display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:7px;padding:0 4px}
+    .podium-person{text-align:center;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+    .podium-person .medal{font-size:31px}
+    .podium-person .name{font-weight:900;font-size:16px;margin-top:4px}
+    .podium-person .pts{font-size:26px;font-weight:900;margin:2px 0 8px}
+    .step{display:grid;place-items:center;color:white;font-size:34px;font-weight:900;border-radius:12px 12px 0 0}
+    .first .step{height:108px;background:linear-gradient(180deg,#f8c91f,#e7ad00)}
+    .second .step{height:80px;background:linear-gradient(180deg,#c6ced7,#a6b0bb)}
+    .third .step{height:64px;background:linear-gradient(180deg,#d88a47,#ba6627)}
+    .table-card{padding:0;overflow:hidden}
+    .table-head{padding:15px 16px;border-bottom:1px solid #e3e9ef;display:flex;align-items:center;gap:8px}
+    .table-wrap{overflow-x:auto}
+    table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+    th,td{padding:11px 8px;border-bottom:1px solid #edf1f5;text-align:center}
+    th{background:#f7f9fc;font-size:12px;position:sticky;top:0}
+    td.name,th.name{text-align:left;font-weight:800}
+    tr.top1 td{background:#fff8cf}
+    tr.top2 td{background:#f5f7fa}
+    tr.top3 td{background:#fff0e5}
+    td.total{font-weight:900}
+    .empty{
+      padding:22px 16px;text-align:center;color:var(--muted);font-size:14px;
+    }
+    .winner{
+      background:linear-gradient(135deg,#e9faee,#f3fff6);border:1px solid #d5f1dd;
+      border-radius:16px;padding:14px;text-align:center;font-weight:800;color:#177642;margin-top:12px;
+    }
+    .bottom-nav{
+      position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(520px,100%);
+      display:grid;grid-template-columns:repeat(3,1fr);background:rgba(255,255,255,.97);
+      border-top:1px solid #dfe6ed;padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+      z-index:30;backdrop-filter:blur(10px);
+    }
+    .nav-btn{
+      border:0;background:transparent;border-radius:13px;padding:7px 3px;color:#637085;font-weight:800;font-size:12px;
+      display:grid;gap:2px;place-items:center;
+    }
+    .nav-btn .nav-ico{font-size:23px;line-height:1}
+    .nav-btn.active{color:#0f6ed3;background:#eef6ff}
+    .toolbar{display:flex;justify-content:space-between;gap:8px;margin-top:10px}
+    .mini-note{font-size:12px;color:var(--muted);text-align:center;margin-top:9px}
+    @media(min-width:700px){
+      body{padding:18px 0}
+      .app{min-height:calc(100vh - 36px);border-radius:28px;overflow:hidden}
+      .bottom-nav{bottom:18px;border-radius:0 0 28px 28px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="racket" aria-hidden="true"></div>
+        <div>
+          <h1>Padel Cup</h1>
+          <p>8 spillere • 7 runder • Én vinner</p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="page active" id="page-players">
+        <div class="card hero">
+          <div class="icon">👥</div>
+          <div>
+            <h2>Registrer spillere</h2>
+            <div class="sub">Legg inn navnene på de 8 spillerne som skal delta i konkurransen.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="player-list" id="playerInputs"></div>
+          <button class="primary" id="savePlayersBtn" style="margin-top:14px">▶ Lagre spillere</button>
+          <div class="mini-note">Kampoppsettet består av 7 runder. Hver spiller får én ny makker i hver runde.</div>
+          <div class="hint">ℹ️ Etter lagring kan du gå til <b>Kamper</b> og registrere resultatene. Demoen lagres lokalt på denne enheten.</div>
+          <div class="toolbar">
+            <button class="secondary" id="demoNamesBtn">Fyll inn demo-navn</button>
+            <button class="danger" id="resetBtn">Nullstill alt</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-matches">
+        <div class="card round-card">
+          <div class="round-head">
+            <div class="round-title" id="roundTitle">Runde 1 av 7</div>
+            <div class="round-nav">
+              <button id="prevRound" aria-label="Forrige runde">‹</button>
+              <button id="nextRound" aria-label="Neste runde">›</button>
+            </div>
+          </div>
+          <div class="progress"><span id="progressBar" style="width:14.285%"></span></div>
+          <div class="progress-label"><span id="roundStatus">0 av 7 runder lagret</span><span id="roundPct">14 %</span></div>
+        </div>
+
+        <div id="courts"></div>
+
+        <button class="primary" id="saveRoundBtn">💾 Lagre resultater for runde 1</button>
+        <div class="hint">💡 Hver kamp består av <b>24 poeng</b>. Når du endrer poengene til ett lag, justeres motstanderens poeng automatisk.</div>
+      </section>
+
+      <section class="page" id="page-results">
+        <div class="card podium-card">
+          <div class="podium-title"><span style="font-size:25px">🏆</span><h2>Top 3</h2></div>
+          <div class="podium" id="podium"></div>
+        </div>
+
+        <div class="card table-card">
+          <div class="table-head"><span style="font-size:23px">📊</span><h3>Resultatliste</h3></div>
+          <div class="table-wrap" id="resultsTable"></div>
+        </div>
+        <div id="winnerBox"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Hovedmeny">
+      <button class="nav-btn active" data-page="players"><span class="nav-ico">👥</span><span>Spillere</span></button>
+      <button class="nav-btn" data-page="matches"><span class="nav-ico">🎾</span><span>Kamper</span></button>
+      <button class="nav-btn" data-page="results"><span class="nav-ico">📊</span><span>Resultater</span></button>
+    </nav>
+  </div>
+
+<script>
+(() => {
+  const DEFAULT_NAMES = ["Espen","Erik","Anders","Thomas","Ole","Petter","Jon","Morten"];
+  const STORAGE_KEY = "padelCup_v1";
+
+  // 1-factorisering av 8 spillere:
+  // Hver spiller er makker med hver av de 7 andre nøyaktig én gang.
+  const teammateRounds = [
+    [[0,7],[1,6],[2,5],[3,4]],
+    [[0,6],[7,5],[1,4],[2,3]],
+    [[0,5],[6,4],[7,3],[1,2]],
+    [[0,4],[5,3],[6,2],[7,1]],
+    [[0,3],[4,2],[5,1],[6,7]],
+    [[0,2],[3,1],[4,7],[5,6]],
+    [[0,1],[2,7],[3,6],[4,5]]
+  ];
+
+  // De fire makkerparene i hver runde fordeles på to baner.
+  const matchPairing = [[0,1],[2,3]];
+
+  let state = loadState();
+  let currentRound = Math.min(Math.max(state.currentRound ?? 0, 0), 6);
+
+  function freshState(){
+    return {
+      players:[...DEFAULT_NAMES],
+      scores:Array.from({length:7}, () => [[12,12],[12,12]]),
+      saved:Array(7).fill(false),
+      currentRound:0
+    };
+  }
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return freshState();
+      const s = JSON.parse(raw);
+      if(!s.players || s.players.length !== 8 || !s.scores || s.scores.length !== 7) return freshState();
+      return s;
+    }catch(e){ return freshState(); }
+  }
+
+  function persist(){
+    state.currentRound = currentRound;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function renderPlayerInputs(){
+    const wrap = document.getElementById("playerInputs");
+    wrap.innerHTML = "";
+    state.players.forEach((name,i)=>{
+      const row = document.createElement("div");
+      row.className="player-row";
+      row.innerHTML = `<div class="num">${i+1}</div><input type="text" maxlength="24" value="${escapeHtml(name)}" data-player="${i}" aria-label="Spiller ${i+1}">`;
+      wrap.appendChild(row);
+    });
+  }
+
+  function savePlayers(){
+    const inputs=[...document.querySelectorAll("[data-player]")];
+    const names=inputs.map(x=>x.value.trim());
+    if(names.some(n=>!n)){
+      alert("Alle 8 spillerne må ha et navn.");
+      return;
+    }
+    const lower=names.map(n=>n.toLowerCase());
+    if(new Set(lower).size !== 8){
+      alert("Spillernavnene må være unike.");
+      return;
+    }
+    state.players=names;
+    persist();
+    renderRound();
+    renderResults();
+    flashButton(document.getElementById("savePlayersBtn"),"✓ Spillere lagret","▶ Lagre spillere");
+  }
+
+  function renderRound(){
+    const r=currentRound;
+    document.getElementById("roundTitle").textContent=`Runde ${r+1} av 7`;
+    document.getElementById("saveRoundBtn").textContent=`💾 Lagre resultater for runde ${r+1}`;
+    document.getElementById("progressBar").style.width=`${((r+1)/7)*100}%`;
+    document.getElementById("roundPct").textContent=`${Math.round(((r+1)/7)*100)} %`;
+    document.getElementById("roundStatus").textContent=`${state.saved.filter(Boolean).length} av 7 runder lagret`;
+
+    const courts=document.getElementById("courts");
+    courts.innerHTML="";
+
+    matchPairing.forEach((pairing,courtIdx)=>{
+      const pA=teammateRounds[r][pairing[0]];
+      const pB=teammateRounds[r][pairing[1]];
+      const sc=state.scores[r][courtIdx];
+
+      const card=document.createElement("div");
+      card.className="court";
+      card.innerHTML=`
+        <div class="court-title">
+          <strong>🎾 Bane ${courtIdx+1}</strong>
+          <span>${state.saved[r] ? '<span class="saved-badge">✓ Lagret</span>' : '24 poeng'}</span>
+        </div>
+        <div class="teams">
+          <div class="team a">${escapeHtml(state.players[pA[0]])}<br>+<br>${escapeHtml(state.players[pA[1]])}</div>
+          <div class="vs">VS</div>
+          <div class="team b">${escapeHtml(state.players[pB[0]])}<br>+<br>${escapeHtml(state.players[pB[1]])}</div>
+        </div>
+        <div class="scoreline">
+          <div class="score-control">
+            <button data-score="${courtIdx}-0" data-delta="-1">−</button>
+            <div class="score" id="score-${courtIdx}-0">${sc[0]}</div>
+            <button data-score="${courtIdx}-0" data-delta="1">+</button>
+          </div>
+          <div class="dash">–</div>
+          <div class="score-control">
+            <button data-score="${courtIdx}-1" data-delta="-1">−</button>
+            <div class="score" id="score-${courtIdx}-1">${sc[1]}</div>
+            <button data-score="${courtIdx}-1" data-delta="1">+</button>
+          </div>
+        </div>`;
+      courts.appendChild(card);
+    });
+
+    courts.querySelectorAll("[data-score]").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        const [court,team]=btn.dataset.score.split("-").map(Number);
+        const delta=Number(btn.dataset.delta);
+        adjustScore(court,team,delta);
+      });
+    });
+  }
+
+  function adjustScore(court,team,delta){
+    const other=team===0?1:0;
+    let next=state.scores[currentRound][court][team]+delta;
+    next=Math.max(0,Math.min(24,next));
+    state.scores[currentRound][court][team]=next;
+    state.scores[currentRound][court][other]=24-next;
+    state.saved[currentRound]=false;
+    persist();
+    renderRound();
+    renderResults();
+  }
+
+  function saveRound(){
+    state.saved[currentRound]=true;
+    persist();
+    renderRound();
+    renderResults();
+    const btn=document.getElementById("saveRoundBtn");
+    flashButton(btn,`✓ Runde ${currentRound+1} lagret`,`💾 Lagre resultater for runde ${currentRound+1}`);
+    if(currentRound<6){
+      setTimeout(()=>{ currentRound++; persist(); renderRound(); window.scrollTo({top:0,behavior:"smooth"}); },600);
+    }
+  }
+
+  function standings(){
+    const rows=state.players.map((name,playerIdx)=>({
+      idx:playerIdx,
+      name,
+      rounds:Array(7).fill(null),
+      total:0
+    }));
+
+    for(let r=0;r<7;r++){
+      if(!state.saved[r]) continue;
+      matchPairing.forEach((pairing,courtIdx)=>{
+        const pairA=teammateRounds[r][pairing[0]];
+        const pairB=teammateRounds[r][pairing[1]];
+        const [a,b]=state.scores[r][courtIdx];
+        pairA.forEach(p=>{rows[p].rounds[r]=a; rows[p].total+=a;});
+        pairB.forEach(p=>{rows[p].rounds[r]=b; rows[p].total+=b;});
+      });
+    }
+
+    return rows.sort((x,y)=> y.total-x.total || x.name.localeCompare(y.name,"no"));
+  }
+
+  function renderResults(){
+    const s=standings();
+    const savedCount=state.saved.filter(Boolean).length;
+    const podium=document.getElementById("podium");
+    const top=s.slice(0,3);
+
+    if(savedCount===0){
+      podium.innerHTML=`<div class="empty" style="grid-column:1/-1;align-self:center">Ingen resultater lagret ennå.</div>`;
+    }else{
+      const slot = (rank, cls, medal) => {
+        const p=top[rank-1];
+        return `<div class="podium-person ${cls}">
+          <div class="medal">${medal}</div>
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="pts">${p.total}</div>
+          <div class="step">${rank}</div>
+        </div>`;
+      };
+      podium.innerHTML = slot(2,"second","🥈") + slot(1,"first","🥇") + slot(3,"third","🥉");
+    }
+
+    if(savedCount===0){
+      document.getElementById("resultsTable").innerHTML=`<div class="empty">Registrer og lagre første runde for å se resultatlisten.</div>`;
+      document.getElementById("winnerBox").innerHTML="";
+      return;
+    }
+
+    let html=`<table><thead><tr><th>#</th><th class="name">Spiller</th>`;
+    for(let r=1;r<=7;r++) html+=`<th>${r}</th>`;
+    html+=`<th>Totalt</th></tr></thead><tbody>`;
+
+    s.forEach((p,i)=>{
+      html+=`<tr class="${i===0?'top1':i===1?'top2':i===2?'top3':''}">
+        <td><b>${i+1}</b></td><td class="name">${escapeHtml(p.name)}</td>
+        ${p.rounds.map(v=>`<td>${v===null?'–':v}</td>`).join("")}
+        <td class="total">${p.total}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+    document.getElementById("resultsTable").innerHTML=html;
+
+    const winnerBox=document.getElementById("winnerBox");
+    winnerBox.innerHTML = savedCount===7
+      ? `<div class="winner">🏆 Gratulerer, ${escapeHtml(s[0].name)}!<br><span style="font-size:13px;font-weight:600">Vinner av Padel Cup med ${s[0].total} poeng.</span></div>`
+      : `<div class="mini-note">${savedCount} av 7 runder er registrert.</div>`;
+  }
+
+  function showPage(page){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    document.getElementById(`page-${page}`).classList.add("active");
+    document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+    if(page==="matches") renderRound();
+    if(page==="results") renderResults();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function flashButton(btn,temp,original){
+    const old=btn.textContent;
+    btn.textContent=temp;
+    setTimeout(()=>btn.textContent=original || old,900);
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+  }
+
+  document.querySelectorAll(".nav-btn").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
+  document.getElementById("savePlayersBtn").addEventListener("click",savePlayers);
+  document.getElementById("saveRoundBtn").addEventListener("click",saveRound);
+
+  document.getElementById("prevRound").addEventListener("click",()=>{
+    currentRound=Math.max(0,currentRound-1);persist();renderRound();
+  });
+  document.getElementById("nextRound").addEventListener("click",()=>{
+    currentRound=Math.min(6,currentRound+1);persist();renderRound();
+  });
+
+  document.getElementById("demoNamesBtn").addEventListener("click",()=>{
+    state.players=[...DEFAULT_NAMES];
+    persist();renderPlayerInputs();renderRound();renderResults();
+  });
+
+  document.getElementById("resetBtn").addEventListener("click",()=>{
+    if(confirm("Vil du nullstille alle spillere og resultater?")){
+      state=freshState(); currentRound=0; persist();
+      renderPlayerInputs();renderRound();renderResults();showPage("players");
+    }
+  });
+
+  renderPlayerInputs();
+  renderRound();
+  renderResults();
+})();
+</script>
+</body>
+</html>
