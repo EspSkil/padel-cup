@@ -154,6 +154,10 @@
     .score-control{display:grid;grid-template-columns:42px 1fr 42px;gap:7px;align-items:center}
     .score-control button{
       height:40px;border:0;border-radius:11px;background:#e7edf4;font-size:24px;font-weight:900;color:#193a5f;
+      touch-action:manipulation;
+      user-select:none;
+      -webkit-user-select:none;
+      -webkit-touch-callout:none;
     }
     .score{
       height:40px;border:1px solid #ccd7e2;border-radius:11px;display:grid;place-items:center;background:white;
@@ -166,22 +170,22 @@
     }
     .round-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
     .round-actions .primary{grid-column:1/-1}
-    .podium-card{overflow:hidden}
-    .podium-title{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-    .podium{height:160px;display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:7px;padding:0 4px}
+    .podium-card{overflow:hidden;padding:10px 12px}
+    .podium-title{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+    .podium{height:126px;display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:7px;padding:0 4px}
     .podium-person{text-align:center;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
-    .podium-person .medal{font-size:24px}
-    .podium-person .name{font-weight:900;font-size:14px;margin-top:4px}
-    .podium-person .pts{font-size:21px;font-weight:900;margin:2px 0 8px}
-    .step{display:grid;place-items:center;color:white;font-size:28px;font-weight:900;border-radius:12px 12px 0 0}
-    .first .step{height:74px;background:linear-gradient(180deg,#f8c91f,#e7ad00)}
-    .second .step{height:56px;background:linear-gradient(180deg,#c6ced7,#a6b0bb)}
-    .third .step{height:46px;background:linear-gradient(180deg,#d88a47,#ba6627)}
+    .podium-person .medal{font-size:19px}
+    .podium-person .name{font-weight:900;font-size:13px;margin-top:4px}
+    .podium-person .pts{font-size:18px;font-weight:900;margin:2px 0 8px}
+    .step{display:grid;place-items:center;color:white;font-size:23px;font-weight:900;border-radius:12px 12px 0 0}
+    .first .step{height:54px;background:linear-gradient(180deg,#f8c91f,#e7ad00)}
+    .second .step{height:40px;background:linear-gradient(180deg,#c6ced7,#a6b0bb)}
+    .third .step{height:32px;background:linear-gradient(180deg,#d88a47,#ba6627)}
     .table-card{padding:0;overflow:hidden}
-    .table-head{padding:15px 16px;border-bottom:1px solid #e3e9ef;display:flex;align-items:center;gap:8px}
+    .table-head{padding:9px 12px;border-bottom:1px solid #e3e9ef;display:flex;align-items:center;gap:6px}
     .table-wrap{overflow-x:auto}
     table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
-    th,td{padding:9px 8px;border-bottom:1px solid #edf1f5;text-align:center;white-space:nowrap}
+    th,td{padding:7px 8px;border-bottom:1px solid #edf1f5;text-align:center;white-space:nowrap}
     th{background:#f7f9fc;font-size:12px;position:sticky;top:0}
     td.name,th.name{text-align:left;font-weight:800;position:sticky;left:44px;z-index:3;background:inherit;box-shadow:5px 0 7px -7px rgba(16,35,63,.45)}
     th:first-child,td:first-child{position:sticky;left:0;z-index:4;background:inherit;width:44px;min-width:44px}
@@ -275,12 +279,12 @@
 
       <section class="page" id="page-results">
         <div class="card podium-card">
-          <div class="podium-title"><span style="font-size:25px">🏆</span><h2>Top 3</h2></div>
+          <div class="podium-title"><span style="font-size:20px">🏆</span><h2>Top 3</h2></div>
           <div class="podium" id="podium"></div>
         </div>
 
         <div class="card table-card">
-          <div class="table-head"><span style="font-size:23px">📊</span><h3>Resultatliste</h3></div>
+          <div class="table-head"><span style="font-size:19px">📊</span><h3>Resultatliste</h3></div>
           <div class="table-wrap" id="resultsTable"></div>
         </div>
         <div id="winnerBox"></div>
