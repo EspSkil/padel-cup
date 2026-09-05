@@ -247,10 +247,9 @@
           <div class="player-list" id="playerInputs"></div>
           <button class="primary" id="savePlayersBtn" style="margin-top:14px">▶ Lagre spillere</button>
           <div class="mini-note">Kampoppsettet består av 7 runder. Hver spiller får én ny makker i hver runde.</div>
-          <div class="hint">ℹ️ Etter lagring kan du gå til <b>Kamper</b> og registrere resultatene. Demoen lagres lokalt på denne enheten.</div>
-          <div class="toolbar">
-            <button class="secondary" id="demoNamesBtn">Fyll inn demo-navn</button>
-            <button class="danger" id="resetBtn">Nullstill alt</button>
+          <div class="hint">ℹ️ Etter lagring kan du gå til <b>Kamper</b> og registrere resultatene. Data lagres i Google Sheet og deles mellom alle som åpner nettsiden.</div>
+          <div class="toolbar" style="grid-template-columns:1fr">
+            <button class="danger" id="resetBtn">Ny konkurranse / nullstill</button>
           </div>
         </div>
       </section>
@@ -297,11 +296,9 @@
 
 <script>
 (() => {
-  const DEFAULT_NAMES = ["Espen","Erik","Anders","Thomas","Ole","Petter","Jon","Morten"];
-  const STORAGE_KEY = "padelCup_v1";
+  const API_URL = "https://script.google.com/macros/s/AKfycbzN0pK_Jw5PmhqcPxmKZbO4dOKKUM4mDl4qmVMQu3GZFN2E5RNMEhbDCHpd8uh6hKYR4A/exec";
 
-  // 1-factorisering av 8 spillere:
-  // Hver spiller er makker med hver av de 7 andre nøyaktig én gang.
+  // Samme 7-runders oppsett som brukes av Code.gs
   const teammateRounds = [
     [[0,7],[1,6],[2,5],[3,4]],
     [[0,6],[7,5],[1,4],[2,3]],
@@ -311,35 +308,102 @@
     [[0,2],[3,1],[4,7],[5,6]],
     [[0,1],[2,7],[3,6],[4,5]]
   ];
-
-  // De fire makkerparene i hver runde fordeles på to baner.
   const matchPairing = [[0,1],[2,3]];
 
-  let state = loadState();
-  let currentRound = Math.min(Math.max(state.currentRound ?? 0, 0), 6);
+  let state = freshState();
+  let currentRound = 0;
+  let busy = false;
 
   function freshState(){
     return {
-      players:[...DEFAULT_NAMES],
+      players:Array(8).fill(""),
       scores:Array.from({length:7}, () => [[12,12],[12,12]]),
-      saved:Array(7).fill(false),
-      currentRound:0
+      saved:Array(7).fill(false)
     };
   }
 
-  function loadState(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return freshState();
-      const s = JSON.parse(raw);
-      if(!s.players || s.players.length !== 8 || !s.scores || s.scores.length !== 7) return freshState();
-      return s;
-    }catch(e){ return freshState(); }
+  function applyServerData(data){
+    const next = freshState();
+
+    if (Array.isArray(data?.players)) {
+      next.players = data.players.slice(0,8).map(v => String(v || ""));
+      while(next.players.length < 8) next.players.push("");
+    }
+
+    if (Array.isArray(data?.rounds)) {
+      data.rounds.forEach((r, i) => {
+        if (i > 6) return;
+        next.saved[i] = !!r.saved;
+        if (r.saved && Array.isArray(r.court1) && Array.isArray(r.court2)) {
+          next.scores[i] = [
+            [Number(r.court1[0]), Number(r.court1[1])],
+            [Number(r.court2[0]), Number(r.court2[1])]
+          ];
+        }
+      });
+    }
+
+    state = next;
+    const firstUnsaved = state.saved.findIndex(v => !v);
+    currentRound = firstUnsaved === -1 ? 6 : firstUnsaved;
+
+    renderPlayerInputs();
+    renderRound();
+    renderResults();
   }
 
-  function persist(){
-    state.currentRound = currentRound;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  async function apiGet(){
+    const res = await fetch(`${API_URL}?t=${Date.now()}`, {
+      method:"GET",
+      cache:"no-store",
+      redirect:"follow"
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || "Kunne ikke hente data.");
+    return json.data;
+  }
+
+  async function apiPost(payload){
+    // text/plain unngår unødvendig CORS-preflight mot Apps Script
+    const res = await fetch(API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(payload),
+      redirect:"follow"
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || "Kunne ikke lagre data.");
+    return json.data;
+  }
+
+  async function loadFromGoogle(){
+    setBusy(true, "Henter data …");
+    try{
+      const data = await apiGet();
+      applyServerData(data);
+    }catch(err){
+      console.error(err);
+      alert("Kunne ikke hente data fra Google Sheet. Sjekk nettforbindelsen og at Apps Script-webappen er publisert for «Anyone».");
+      renderPlayerInputs();
+      renderRound();
+      renderResults();
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  function setBusy(on, message="Lagrer …"){
+    busy = on;
+    document.querySelectorAll("button").forEach(b => b.disabled = on);
+    const btn = document.getElementById("saveRoundBtn");
+    if(on && btn) btn.dataset.oldText = btn.textContent, btn.textContent = message;
+    if(!on && btn && btn.dataset.oldText){
+      btn.textContent = btn.dataset.oldText;
+      delete btn.dataset.oldText;
+      renderRound();
+    }
   }
 
   function renderPlayerInputs(){
@@ -348,14 +412,21 @@
     state.players.forEach((name,i)=>{
       const row = document.createElement("div");
       row.className="player-row";
-      row.innerHTML = `<div class="num">${i+1}</div><input type="text" maxlength="24" value="${escapeHtml(name)}" data-player="${i}" aria-label="Spiller ${i+1}">`;
+      row.innerHTML = `<div class="num">${i+1}</div><input type="text" maxlength="24" value="${escapeHtml(name)}" data-player="${i}" aria-label="Spiller ${i+1}" placeholder="Navn ${i+1}">`;
       wrap.appendChild(row);
     });
   }
 
-  function savePlayers(){
+  function playerName(i){
+    return state.players[i] || `Spiller ${i+1}`;
+  }
+
+  async function savePlayers(){
+    if(busy) return;
+
     const inputs=[...document.querySelectorAll("[data-player]")];
     const names=inputs.map(x=>x.value.trim());
+
     if(names.some(n=>!n)){
       alert("Alle 8 spillerne må ha et navn.");
       return;
@@ -365,11 +436,23 @@
       alert("Spillernavnene må være unike.");
       return;
     }
-    state.players=names;
-    persist();
-    renderRound();
-    renderResults();
-    flashButton(document.getElementById("savePlayersBtn"),"✓ Spillere lagret","▶ Lagre spillere");
+
+    if(state.saved.some(Boolean)){
+      const ok = confirm("Lagring av en ny spillerliste vil slette alle eksisterende resultater. Vil du fortsette?");
+      if(!ok) return;
+    }
+
+    setBusy(true, "Lagrer spillere …");
+    try{
+      const data = await apiPost({action:"savePlayers", players:names});
+      applyServerData(data);
+      flashButton(document.getElementById("savePlayersBtn"),"✓ Spillere lagret","▶ Lagre spillere");
+    }catch(err){
+      console.error(err);
+      alert("Kunne ikke lagre spillerne i Google Sheet.");
+    }finally{
+      setBusy(false);
+    }
   }
 
   function renderRound(){
@@ -396,9 +479,9 @@
           <span>${state.saved[r] ? '<span class="saved-badge">✓ Lagret</span>' : '24 poeng'}</span>
         </div>
         <div class="teams">
-          <div class="team a">${escapeHtml(state.players[pA[0]])}<br>+<br>${escapeHtml(state.players[pA[1]])}</div>
+          <div class="team a">${escapeHtml(playerName(pA[0]))}<br>+<br>${escapeHtml(playerName(pA[1]))}</div>
           <div class="vs">VS</div>
-          <div class="team b">${escapeHtml(state.players[pB[0]])}<br>+<br>${escapeHtml(state.players[pB[1]])}</div>
+          <div class="team b">${escapeHtml(playerName(pB[0]))}<br>+<br>${escapeHtml(playerName(pB[1]))}</div>
         </div>
         <div class="scoreline">
           <div class="score-control">
@@ -432,27 +515,51 @@
     state.scores[currentRound][court][team]=next;
     state.scores[currentRound][court][other]=24-next;
     state.saved[currentRound]=false;
-    persist();
     renderRound();
     renderResults();
   }
 
-  function saveRound(){
-    state.saved[currentRound]=true;
-    persist();
-    renderRound();
-    renderResults();
-    const btn=document.getElementById("saveRoundBtn");
-    flashButton(btn,`✓ Runde ${currentRound+1} lagret`,`💾 Lagre resultater for runde ${currentRound+1}`);
-    if(currentRound<6){
-      setTimeout(()=>{ currentRound++; persist(); renderRound(); window.scrollTo({top:0,behavior:"smooth"}); },600);
+  async function saveRound(){
+    if(busy) return;
+
+    if(state.players.some(n=>!n)){
+      alert("Registrer og lagre alle 8 spillerne først.");
+      showPage("players");
+      return;
+    }
+
+    const roundToSave = currentRound;
+    const scores = state.scores[roundToSave];
+
+    setBusy(true, `Lagrer runde ${roundToSave+1} …`);
+    try{
+      const data = await apiPost({
+        action:"saveRound",
+        round:roundToSave+1,
+        court1:[scores[0][0],scores[0][1]],
+        court2:[scores[1][0],scores[1][1]]
+      });
+
+      applyServerData(data);
+      flashButton(document.getElementById("saveRoundBtn"),`✓ Runde ${roundToSave+1} lagret`,`💾 Lagre resultater for runde ${currentRound+1}`);
+
+      const nextUnsaved = state.saved.findIndex(v => !v);
+      if(nextUnsaved !== -1){
+        currentRound = nextUnsaved;
+        setTimeout(()=>{ renderRound(); window.scrollTo({top:0,behavior:"smooth"}); },500);
+      }
+    }catch(err){
+      console.error(err);
+      alert("Kunne ikke lagre resultatet i Google Sheet.");
+    }finally{
+      setBusy(false);
     }
   }
 
   function standings(){
     const rows=state.players.map((name,playerIdx)=>({
       idx:playerIdx,
-      name,
+      name:name || `Spiller ${playerIdx+1}`,
       rounds:Array(7).fill(null),
       total:0,
       rank:null
@@ -471,7 +578,6 @@
 
     rows.sort((x,y)=> y.total-x.total || x.name.localeCompare(y.name,"no"));
 
-    // Konkurranserangering: lik poengsum = samme plass (f.eks. 1, 1, 3).
     let previousTotal = null;
     let previousRank = 0;
     rows.forEach((row, index) => {
@@ -544,9 +650,9 @@
   }
 
   function flashButton(btn,temp,original){
-    const old=btn.textContent;
+    if(!btn) return;
     btn.textContent=temp;
-    setTimeout(()=>btn.textContent=original || old,900);
+    setTimeout(()=>btn.textContent=original,900);
   }
 
   function escapeHtml(str){
@@ -558,27 +664,38 @@
   document.getElementById("saveRoundBtn").addEventListener("click",saveRound);
 
   document.getElementById("prevRound").addEventListener("click",()=>{
-    currentRound=Math.max(0,currentRound-1);persist();renderRound();
+    currentRound=Math.max(0,currentRound-1);
+    renderRound();
   });
   document.getElementById("nextRound").addEventListener("click",()=>{
-    currentRound=Math.min(6,currentRound+1);persist();renderRound();
+    currentRound=Math.min(6,currentRound+1);
+    renderRound();
   });
 
-  document.getElementById("demoNamesBtn").addEventListener("click",()=>{
-    state.players=[...DEFAULT_NAMES];
-    persist();renderPlayerInputs();renderRound();renderResults();
-  });
+  document.getElementById("resetBtn").addEventListener("click", async ()=>{
+    if(busy) return;
+    const ok = confirm("Er du helt sikker på at du vil starte en ny konkurranse? Alle spillernavn, kampoppsett og resultater i Padel1 blir slettet.");
+    if(!ok) return;
 
-  document.getElementById("resetBtn").addEventListener("click",()=>{
-    if(confirm("Vil du nullstille alle spillere og resultater?")){
-      state=freshState(); currentRound=0; persist();
-      renderPlayerInputs();renderRound();renderResults();showPage("players");
+    setBusy(true, "Nullstiller …");
+    try{
+      const data = await apiPost({action:"resetTournament"});
+      applyServerData(data);
+      currentRound=0;
+      renderRound();
+      showPage("players");
+    }catch(err){
+      console.error(err);
+      alert("Kunne ikke nullstille konkurransen i Google Sheet.");
+    }finally{
+      setBusy(false);
     }
   });
 
   renderPlayerInputs();
   renderRound();
   renderResults();
+  loadFromGoogle();
 })();
 </script>
 </body>
