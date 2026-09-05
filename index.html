@@ -98,20 +98,34 @@
     h3{font-size:17px;margin:0}
     .sub{color:var(--muted);font-size:13px;line-height:1.4}
 
+    .setup-row{
+      display:grid;
+      grid-template-columns:1.5fr .8fr;
+      gap:10px;
+      align-items:end;
+      margin-bottom:4px;
+    }
+    .setup-label{
+      display:block;
+      font-size:12px;
+      font-weight:900;
+      color:#52657a;
+      margin:0 0 5px 2px;
+    }
     .player-count-picker{
       display:grid;
       grid-template-columns:repeat(3,1fr);
-      gap:8px;
-      margin-bottom:4px;
+      gap:6px;
+      margin-bottom:0;
     }
     .count-btn{
       border:1px solid #cfd8e3;
       background:white;
       color:var(--navy);
       font-weight:900;
-      border-radius:13px;
-      padding:11px 8px;
-      font-size:17px;
+      border-radius:11px;
+      padding:8px 5px;
+      font-size:15px;
       touch-action:manipulation;
       user-select:none;
       -webkit-user-select:none;
@@ -123,6 +137,26 @@
       box-shadow:0 0 0 2px rgba(15,110,211,.08);
     }
     .count-btn:disabled{opacity:.55;cursor:default}
+    .points-input{
+      width:100%;
+      height:38px;
+      border:1px solid #cfd8e3;
+      border-radius:11px;
+      padding:0 10px;
+      background:white;
+      color:var(--text);
+      font-weight:900;
+      text-align:center;
+      outline:none;
+    }
+    .points-input:focus{
+      border-color:#76aee9;
+      box-shadow:0 0 0 3px rgba(25,118,210,.09);
+    }
+    .points-input:disabled{
+      background:#f2f5f8;
+      color:#6c7a8b;
+    }
 
     .player-list{display:grid;gap:7px}
     .player-row{display:grid;grid-template-columns:38px 1fr;gap:9px;align-items:center}
@@ -347,15 +381,24 @@
         </div>
 
         <div class="card">
-          <div style="font-weight:900;margin-bottom:8px">Antall spillere</div>
-          <div class="player-count-picker" id="playerCountPicker">
-            <button class="count-btn" data-count="4">4</button>
-            <button class="count-btn active" data-count="8">8</button>
-            <button class="count-btn" data-count="12">12</button>
+          <div class="setup-row">
+            <div class="setup-block">
+              <div class="setup-label">Spillere</div>
+              <div class="player-count-picker" id="playerCountPicker">
+                <button class="count-btn" data-count="4">4</button>
+                <button class="count-btn active" data-count="8">8</button>
+                <button class="count-btn" data-count="12">12</button>
+              </div>
+            </div>
+
+            <div class="setup-block points-block">
+              <label class="setup-label" for="pointsPerMatch">Poeng per kamp</label>
+              <input id="pointsPerMatch" class="points-input" type="number" min="1" max="99" step="1" value="24" inputmode="numeric">
+            </div>
           </div>
 
           <div class="mini-note" id="formatInfo" style="margin:8px 0 12px">
-            8 spillere • 2 baner • 7 runder
+            8 spillere • 2 baner • 7 runder • 24 poeng
           </div>
 
           <div class="player-list" id="playerInputs"></div>
@@ -418,16 +461,20 @@
   let currentRound = 0;
   let busy = false;
 
-  function freshState(playerCount=8){
+  function freshState(playerCount=8, pointsPerMatch=24){
     const roundCount = playerCount - 1;
     const courtCount = playerCount / 4;
+    const first = Math.ceil(pointsPerMatch/2);
+    const second = pointsPerMatch-first;
     return {
       playerCount,
       roundCount,
       courtCount,
+      pointsPerMatch,
+      activeTournament:false,
       players:Array(playerCount).fill(""),
       scores:Array.from({length:roundCount}, () =>
-        Array.from({length:courtCount}, () => [12,12])
+        Array.from({length:courtCount}, () => [first,second])
       ),
       saved:Array(roundCount).fill(false)
     };
@@ -463,14 +510,17 @@
   function applyServerData(data){
     if(!data?.playerCount){
       const selected = state?.playerCount || 8;
-      state = freshState(selected);
+      const points = Number(data?.pointsPerMatch || state?.pointsPerMatch || 24);
+      state = freshState(selected, points);
       currentRound = 0;
       renderAll();
       return;
     }
 
     const playerCount = Number(data.playerCount);
-    const next = freshState(playerCount);
+    const pointsPerMatch = Number(data.pointsPerMatch || 24);
+    const next = freshState(playerCount, pointsPerMatch);
+    next.activeTournament = true;
 
     next.players = Array.isArray(data.players)
       ? data.players.slice(0,playerCount).map(v=>String(v||""))
@@ -552,6 +602,7 @@
   function renderAll(){
     renderHeader();
     renderCountPicker();
+    renderPointsControl();
     renderPlayerInputs();
     renderRound();
     renderResults();
@@ -569,8 +620,18 @@
     });
     const info = document.getElementById("formatInfo");
     if(info){
-      info.textContent = `${state.playerCount} spillere • ${state.courtCount} bane${state.courtCount>1?"r":""} • ${state.roundCount} runder`;
+      info.textContent = `${state.playerCount} spillere • ${state.courtCount} bane${state.courtCount>1?"r":""} • ${state.roundCount} runder • ${state.pointsPerMatch} poeng`;
     }
+  }
+
+  function renderPointsControl(){
+    const input = document.getElementById("pointsPerMatch");
+    if(!input) return;
+    input.value = state.pointsPerMatch;
+    input.disabled = busy || state.activeTournament;
+    document.querySelectorAll(".count-btn").forEach(btn=>{
+      btn.disabled = busy || state.activeTournament;
+    });
   }
 
   function renderPlayerInputs(){
@@ -607,7 +668,7 @@
       if(!ok) return;
     }
 
-    state = freshState(count);
+    state = freshState(count, state.pointsPerMatch);
     currentRound = 0;
     renderAll();
   }
@@ -636,9 +697,18 @@
 
     setBusy(true,"Lagrer spillere …");
     try{
+      const pointsInput = Number(document.getElementById("pointsPerMatch").value);
+      if(!Number.isInteger(pointsInput) || pointsInput < 1 || pointsInput > 99){
+        alert("Poeng per kamp må være et helt tall fra 1 til 99.");
+        return;
+      }
+
+      state.pointsPerMatch = pointsInput;
+
       const data=await apiPost({
         action:"savePlayers",
         playerCount:state.playerCount,
+        pointsPerMatch:state.pointsPerMatch,
         players:names
       });
       applyServerData(data);
@@ -676,7 +746,7 @@
       card.innerHTML=`
         <div class="court-title">
           <strong>🎾 Bane ${courtIdx+1}</strong>
-          <span>${state.saved[r] ? '<span class="saved-badge">✓ Lagret</span>' : '24 poeng'}</span>
+          <span>${state.saved[r] ? '<span class="saved-badge">✓ Lagret</span>' : `${state.pointsPerMatch} poeng`}</span>
         </div>
         <div class="teams">
           <div class="team a">${escapeHtml(playerName(pairA[0]))}<br>+<br>${escapeHtml(playerName(pairA[1]))}</div>
@@ -710,9 +780,9 @@
   function adjustScore(court,team,delta){
     const other=team===0?1:0;
     let next=state.scores[currentRound][court][team]+delta;
-    next=Math.max(0,Math.min(24,next));
+    next=Math.max(0,Math.min(state.pointsPerMatch,next));
     state.scores[currentRound][court][team]=next;
-    state.scores[currentRound][court][other]=24-next;
+    state.scores[currentRound][court][other]=state.pointsPerMatch-next;
     state.saved[currentRound]=false;
     renderRound();
     renderResults();
@@ -881,6 +951,16 @@
     renderRound();
   });
 
+  document.getElementById("pointsPerMatch").addEventListener("change",()=>{
+    if(state.activeTournament) return;
+    const value = Number(document.getElementById("pointsPerMatch").value);
+    if(Number.isInteger(value) && value >= 1 && value <= 99){
+      state = freshState(state.playerCount, value);
+      currentRound = 0;
+      renderAll();
+    }
+  });
+
   document.getElementById("resetBtn").addEventListener("click",async()=>{
     if(busy) return;
 
@@ -890,7 +970,7 @@
     setBusy(true,"Nullstiller …");
     try{
       const data=await apiPost({action:"resetTournament"});
-      state=freshState(8);
+      state=freshState(8,24);
       currentRound=0;
       applyServerData(data);
       showPage("players");
