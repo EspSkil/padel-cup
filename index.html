@@ -214,8 +214,8 @@
     table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
     th,td{padding:7px 8px;border-bottom:1px solid #edf1f5;text-align:center;white-space:nowrap}
     th{background:#f7f9fc;font-size:12px;position:sticky;top:0}
-    td.name,th.name{text-align:left;font-weight:800;position:sticky;left:44px;z-index:3;background:inherit;box-shadow:5px 0 7px -7px rgba(16,35,63,.45)}
-    th:first-child,td:first-child{position:sticky;left:0;z-index:4;background:inherit;width:44px;min-width:44px}
+    td.name,th.name{text-align:left;font-weight:800;position:sticky;left:38px;z-index:3;background:inherit;box-shadow:5px 0 7px -7px rgba(16,35,63,.45)}
+    th:first-child,td:first-child{position:sticky;left:0;z-index:4;background:inherit;width:38px;min-width:38px}
     thead th:first-child, thead th.name{z-index:6;background:#f7f9fc}
     tr.top1 td:first-child,tr.top1 td.name{background:#fff8cf}
     tr.top2 td:first-child,tr.top2 td.name{background:#f5f7fa}
@@ -245,6 +245,78 @@
     .nav-btn.active{color:#0f6ed3;background:#eef6ff}
     .toolbar{display:flex;justify-content:space-between;gap:8px;margin-top:10px}
     .mini-note{font-size:12px;color:var(--muted);text-align:center;margin-top:9px}
+
+    .loading-overlay{
+      position:fixed;
+      inset:0;
+      z-index:9999;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(244,247,251,.78);
+      backdrop-filter:blur(3px);
+      -webkit-backdrop-filter:blur(3px);
+      touch-action:none;
+    }
+    .loading-overlay.active{display:flex}
+    .loading-box{
+      min-width:180px;
+      background:white;
+      border:1px solid #dde5ee;
+      border-radius:18px;
+      box-shadow:0 14px 36px rgba(8,40,76,.18);
+      padding:20px 22px;
+      text-align:center;
+      font-weight:800;
+      color:var(--navy);
+    }
+    .spinner{
+      width:34px;
+      height:34px;
+      margin:0 auto 10px;
+      border:4px solid #dbe5ef;
+      border-top-color:var(--blue);
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Resultattabell: plass, navn og total synlig. Rundene ligger til høyre og kan scrolles. */
+    .table-wrap table{min-width:max-content}
+    .table-wrap th,.table-wrap td{min-width:44px}
+    .table-wrap th:first-child,.table-wrap td:first-child{
+      width:38px;
+      min-width:38px;
+      max-width:38px;
+      left:0;
+    }
+    .table-wrap th.name,.table-wrap td.name{
+      width:104px;
+      min-width:104px;
+      max-width:104px;
+      left:38px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .table-wrap th.total-col,.table-wrap td.total-col{
+      position:sticky;
+      left:142px;
+      z-index:3;
+      width:58px;
+      min-width:58px;
+      max-width:58px;
+      background:inherit;
+      box-shadow:5px 0 7px -7px rgba(16,35,63,.45);
+      font-weight:900;
+    }
+    .table-wrap thead th.total-col{
+      z-index:6;
+      background:#f7f9fc;
+    }
+    .table-wrap tr.top1 td.total-col{background:#fff8cf}
+    .table-wrap tr.top2 td.total-col{background:#f5f7fa}
+    .table-wrap tr.top3 td.total-col{background:#fff0e5}
+
     @media(min-width:700px){
       body{padding:18px 0}
       .app{min-height:calc(100vh - 36px);border-radius:28px;overflow:hidden}
@@ -465,7 +537,15 @@
 
   function setBusy(on,message="Lagrer …"){
     busy = on;
-    document.querySelectorAll("button").forEach(b=>b.disabled=on);
+
+    const overlay = document.getElementById("loadingOverlay");
+    const text = document.getElementById("loadingText");
+
+    if(text) text.textContent = message;
+    if(overlay) overlay.classList.toggle("active", on);
+
+    document.querySelectorAll("button,input").forEach(el=>el.disabled=on);
+
     if(!on) renderAll();
   }
 
@@ -736,16 +816,19 @@
       return;
     }
 
-    let table=`<table><thead><tr><th>#</th><th class="name">Spiller</th>`;
+    let table=`<table><thead><tr>
+      <th>#</th>
+      <th class="name">Spiller</th>
+      <th class="total-col">Totalt</th>`;
     for(let r=1;r<=state.roundCount;r++) table+=`<th>${r}</th>`;
-    table+=`<th>Totalt</th></tr></thead><tbody>`;
+    table+=`</tr></thead><tbody>`;
 
     s.forEach((p,i)=>{
       table+=`<tr class="${i===0?'top1':i===1?'top2':i===2?'top3':''}">
         <td><b>${p.rank}</b></td>
-        <td class="name">${escapeHtml(p.name)}</td>
+        <td class="name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</td>
+        <td class="total-col">${p.total}</td>
         ${p.rounds.map(v=>`<td>${v===null?'–':v}</td>`).join("")}
-        <td class="total">${p.total}</td>
       </tr>`;
     });
 
@@ -823,5 +906,13 @@
   loadFromGoogle();
 })();
 </script>
+
+  <div class="loading-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div id="loadingText">Lagrer …</div>
+    </div>
+  </div>
+
 </body>
 </html>
