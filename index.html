@@ -97,6 +97,33 @@
     h2{font-size:19px;margin:0 0 6px}
     h3{font-size:17px;margin:0}
     .sub{color:var(--muted);font-size:13px;line-height:1.4}
+
+    .player-count-picker{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:8px;
+      margin-bottom:4px;
+    }
+    .count-btn{
+      border:1px solid #cfd8e3;
+      background:white;
+      color:var(--navy);
+      font-weight:900;
+      border-radius:13px;
+      padding:11px 8px;
+      font-size:17px;
+      touch-action:manipulation;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .count-btn.active{
+      background:#eaf4ff;
+      border-color:#7fb5e8;
+      color:#0f6ed3;
+      box-shadow:0 0 0 2px rgba(15,110,211,.08);
+    }
+    .count-btn:disabled{opacity:.55;cursor:default}
+
     .player-list{display:grid;gap:7px}
     .player-row{display:grid;grid-template-columns:38px 1fr;gap:9px;align-items:center}
     .num{
@@ -232,7 +259,7 @@
         <div class="racket" aria-hidden="true"></div>
         <div>
           <h1>Padel Cup</h1>
-          <p>8 spillere • 7 runder • Én vinner</p>
+          <p><span id="headerMeta">Velg 4, 8 eller 12 spillere</span></p>
         </div>
       </div>
     </header>
@@ -243,15 +270,28 @@
           <div class="icon">👥</div>
           <div>
             <h2>Registrer spillere</h2>
-            <div class="sub">Legg inn navnene på de 8 spillerne som skal delta i konkurransen.</div>
+            <div class="sub">Velg først hvor mange som skal spille. Siden tilpasser antall baner og runder automatisk.</div>
           </div>
         </div>
 
         <div class="card">
+          <div style="font-weight:900;margin-bottom:8px">Antall spillere</div>
+          <div class="player-count-picker" id="playerCountPicker">
+            <button class="count-btn" data-count="4">4</button>
+            <button class="count-btn active" data-count="8">8</button>
+            <button class="count-btn" data-count="12">12</button>
+          </div>
+
+          <div class="mini-note" id="formatInfo" style="margin:8px 0 12px">
+            8 spillere • 2 baner • 7 runder
+          </div>
+
           <div class="player-list" id="playerInputs"></div>
+
           <button class="primary" id="savePlayersBtn" style="margin-top:14px">▶ Lagre spillere</button>
-          <div class="mini-note">Kampoppsettet består av 7 runder. Hver spiller får én ny makker i hver runde.</div>
-          <div class="hint">ℹ️ Etter lagring kan du gå til <b>Kamper</b> og registrere resultatene. Data lagres i Google Sheet og deles mellom alle som åpner nettsiden.</div>
+          <div class="mini-note">Kampoppsettet genereres automatisk slik at alle får hver av de andre som makker én gang.</div>
+          <div class="hint">ℹ️ Data lagres i Google Sheet og deles mellom alle som åpner nettsiden.</div>
+
           <div class="toolbar" style="grid-template-columns:1fr">
             <button class="danger" id="resetBtn">Ny konkurranse / nullstill</button>
           </div>
@@ -302,62 +342,90 @@
 (() => {
   const API_URL = "https://script.google.com/macros/s/AKfycbzN0pK_Jw5PmhqcPxmKZbO4dOKKUM4mDl4qmVMQu3GZFN2E5RNMEhbDCHpd8uh6hKYR4A/exec";
 
-  // Samme 7-runders oppsett som brukes av Code.gs
-  const teammateRounds = [
-    [[0,7],[1,6],[2,5],[3,4]],
-    [[0,6],[7,5],[1,4],[2,3]],
-    [[0,5],[6,4],[7,3],[1,2]],
-    [[0,4],[5,3],[6,2],[7,1]],
-    [[0,3],[4,2],[5,1],[6,7]],
-    [[0,2],[3,1],[4,7],[5,6]],
-    [[0,1],[2,7],[3,6],[4,5]]
-  ];
-  const matchPairing = [[0,1],[2,3]];
-
-  let state = freshState();
+  let state = freshState(8);
   let currentRound = 0;
   let busy = false;
 
-  function freshState(){
+  function freshState(playerCount=8){
+    const roundCount = playerCount - 1;
+    const courtCount = playerCount / 4;
     return {
-      players:Array(8).fill(""),
-      scores:Array.from({length:7}, () => [[12,12],[12,12]]),
-      saved:Array(7).fill(false)
+      playerCount,
+      roundCount,
+      courtCount,
+      players:Array(playerCount).fill(""),
+      scores:Array.from({length:roundCount}, () =>
+        Array.from({length:courtCount}, () => [12,12])
+      ),
+      saved:Array(roundCount).fill(false)
     };
   }
 
-  function applyServerData(data){
-    const next = freshState();
+  function formatForCount(count){
+    return {
+      playerCount:count,
+      roundCount:count-1,
+      courtCount:count/4
+    };
+  }
 
-    if (Array.isArray(data?.players)) {
-      next.players = data.players.slice(0,8).map(v => String(v || ""));
-      while(next.players.length < 8) next.players.push("");
+  function generateTeammateRounds(playerCount){
+    const rotation = Array.from({length:playerCount},(_,i)=>i);
+    const rounds = [];
+
+    for(let r=0;r<playerCount-1;r++){
+      const pairs = [];
+      for(let i=0;i<playerCount/2;i++){
+        pairs.push([rotation[i], rotation[playerCount-1-i]]);
+      }
+      rounds.push(pairs);
+
+      const fixed = rotation[0];
+      const rest = rotation.slice(1);
+      rest.unshift(rest.pop());
+      rotation.splice(0,rotation.length,fixed,...rest);
+    }
+    return rounds;
+  }
+
+  function applyServerData(data){
+    if(!data?.playerCount){
+      const selected = state?.playerCount || 8;
+      state = freshState(selected);
+      currentRound = 0;
+      renderAll();
+      return;
     }
 
-    if (Array.isArray(data?.rounds)) {
-      data.rounds.forEach((r, i) => {
-        if (i > 6) return;
+    const playerCount = Number(data.playerCount);
+    const next = freshState(playerCount);
+
+    next.players = Array.isArray(data.players)
+      ? data.players.slice(0,playerCount).map(v=>String(v||""))
+      : Array(playerCount).fill("");
+
+    if(Array.isArray(data.rounds)){
+      data.rounds.forEach((r,i)=>{
+        if(i >= next.roundCount) return;
         next.saved[i] = !!r.saved;
-        if (r.saved && Array.isArray(r.court1) && Array.isArray(r.court2)) {
-          next.scores[i] = [
-            [Number(r.court1[0]), Number(r.court1[1])],
-            [Number(r.court2[0]), Number(r.court2[1])]
-          ];
+        if(r.saved && Array.isArray(r.courts)){
+          r.courts.forEach((score,c)=>{
+            if(c < next.courtCount && Array.isArray(score)){
+              next.scores[i][c] = [Number(score[0]),Number(score[1])];
+            }
+          });
         }
       });
     }
 
     state = next;
-    const firstUnsaved = state.saved.findIndex(v => !v);
-    currentRound = firstUnsaved === -1 ? 6 : firstUnsaved;
-
-    renderPlayerInputs();
-    renderRound();
-    renderResults();
+    const firstUnsaved = state.saved.findIndex(v=>!v);
+    currentRound = firstUnsaved === -1 ? Math.max(0,state.roundCount-1) : firstUnsaved;
+    renderAll();
   }
 
   async function apiGet(){
-    const res = await fetch(`${API_URL}?t=${Date.now()}`, {
+    const res = await fetch(`${API_URL}?t=${Date.now()}`,{
       method:"GET",
       cache:"no-store",
       redirect:"follow"
@@ -369,8 +437,7 @@
   }
 
   async function apiPost(payload){
-    // text/plain unngår unødvendig CORS-preflight mot Apps Script
-    const res = await fetch(API_URL, {
+    const res = await fetch(API_URL,{
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body:JSON.stringify(payload),
@@ -383,46 +450,86 @@
   }
 
   async function loadFromGoogle(){
-    setBusy(true, "Henter data …");
+    setBusy(true,"Henter data …");
     try{
       const data = await apiGet();
       applyServerData(data);
     }catch(err){
       console.error(err);
-      alert("Kunne ikke hente data fra Google Sheet. Sjekk nettforbindelsen og at Apps Script-webappen er publisert for «Anyone».");
-      renderPlayerInputs();
-      renderRound();
-      renderResults();
+      alert("Kunne ikke hente data fra Google Sheet. Sjekk nettforbindelsen og at Apps Script-webappen er publisert.");
+      renderAll();
     }finally{
       setBusy(false);
     }
   }
 
-  function setBusy(on, message="Lagrer …"){
+  function setBusy(on,message="Lagrer …"){
     busy = on;
-    document.querySelectorAll("button").forEach(b => b.disabled = on);
-    const btn = document.getElementById("saveRoundBtn");
-    if(on && btn) btn.dataset.oldText = btn.textContent, btn.textContent = message;
-    if(!on && btn && btn.dataset.oldText){
-      btn.textContent = btn.dataset.oldText;
-      delete btn.dataset.oldText;
-      renderRound();
+    document.querySelectorAll("button").forEach(b=>b.disabled=on);
+    if(!on) renderAll();
+  }
+
+  function renderAll(){
+    renderHeader();
+    renderCountPicker();
+    renderPlayerInputs();
+    renderRound();
+    renderResults();
+  }
+
+  function renderHeader(){
+    const meta = document.getElementById("headerMeta");
+    if(!meta) return;
+    meta.textContent = `${state.playerCount} spillere • ${state.roundCount} runder • ${state.courtCount} bane${state.courtCount>1?"r":""}`;
+  }
+
+  function renderCountPicker(){
+    document.querySelectorAll(".count-btn").forEach(btn=>{
+      btn.classList.toggle("active",Number(btn.dataset.count)===state.playerCount);
+    });
+    const info = document.getElementById("formatInfo");
+    if(info){
+      info.textContent = `${state.playerCount} spillere • ${state.courtCount} bane${state.courtCount>1?"r":""} • ${state.roundCount} runder`;
     }
   }
 
   function renderPlayerInputs(){
-    const wrap = document.getElementById("playerInputs");
-    wrap.innerHTML = "";
-    state.players.forEach((name,i)=>{
-      const row = document.createElement("div");
+    const wrap=document.getElementById("playerInputs");
+    if(!wrap) return;
+    wrap.innerHTML="";
+    for(let i=0;i<state.playerCount;i++){
+      const row=document.createElement("div");
       row.className="player-row";
-      row.innerHTML = `<div class="num">${i+1}</div><input type="text" maxlength="24" value="${escapeHtml(name)}" data-player="${i}" aria-label="Spiller ${i+1}" placeholder="Navn ${i+1}">`;
+      row.innerHTML=`<div class="num">${i+1}</div>
+        <input type="text" maxlength="24"
+          value="${escapeHtml(state.players[i]||"")}"
+          data-player="${i}"
+          aria-label="Spiller ${i+1}"
+          placeholder="Navn ${i+1}">`;
       wrap.appendChild(row);
-    });
+    }
   }
 
   function playerName(i){
     return state.players[i] || `Spiller ${i+1}`;
+  }
+
+  function choosePlayerCount(count){
+    if(busy) return;
+    count = Number(count);
+    if(![4,8,12].includes(count) || count===state.playerCount) return;
+
+    const hasPlayers = state.players.some(Boolean);
+    const hasResults = state.saved.some(Boolean);
+
+    if(hasPlayers || hasResults){
+      const ok = confirm("Bytte av antall spillere starter en ny konkurranse. Eksisterende navn og resultater vil bli erstattet når du lagrer de nye spillerne. Vil du fortsette?");
+      if(!ok) return;
+    }
+
+    state = freshState(count);
+    currentRound = 0;
+    renderAll();
   }
 
   async function savePlayers(){
@@ -431,24 +538,29 @@
     const inputs=[...document.querySelectorAll("[data-player]")];
     const names=inputs.map(x=>x.value.trim());
 
-    if(names.some(n=>!n)){
-      alert("Alle 8 spillerne må ha et navn.");
+    if(names.length!==state.playerCount || names.some(n=>!n)){
+      alert(`Alle ${state.playerCount} spillerne må ha et navn.`);
       return;
     }
+
     const lower=names.map(n=>n.toLowerCase());
-    if(new Set(lower).size !== 8){
+    if(new Set(lower).size!==state.playerCount){
       alert("Spillernavnene må være unike.");
       return;
     }
 
     if(state.saved.some(Boolean)){
-      const ok = confirm("Lagring av en ny spillerliste vil slette alle eksisterende resultater. Vil du fortsette?");
+      const ok=confirm("Lagring av en ny spillerliste vil slette alle eksisterende resultater. Vil du fortsette?");
       if(!ok) return;
     }
 
-    setBusy(true, "Lagrer spillere …");
+    setBusy(true,"Lagrer spillere …");
     try{
-      const data = await apiPost({action:"savePlayers", players:names});
+      const data=await apiPost({
+        action:"savePlayers",
+        playerCount:state.playerCount,
+        players:names
+      });
       applyServerData(data);
       flashButton(document.getElementById("savePlayersBtn"),"✓ Spillere lagret","▶ Lagre spillere");
     }catch(err){
@@ -461,18 +573,22 @@
 
   function renderRound(){
     const r=currentRound;
-    document.getElementById("roundTitle").textContent=`Runde ${r+1} av 7`;
-    document.getElementById("saveRoundBtn").textContent=`💾 Lagre resultater for runde ${r+1}`;
-    document.getElementById("progressBar").style.width=`${((r+1)/7)*100}%`;
-    document.getElementById("roundPct").textContent=`${Math.round(((r+1)/7)*100)} %`;
-    document.getElementById("roundStatus").textContent=`${state.saved.filter(Boolean).length} av 7 runder lagret`;
+    const title=document.getElementById("roundTitle");
+    if(!title) return;
 
+    title.textContent=`Runde ${r+1} av ${state.roundCount}`;
+    document.getElementById("saveRoundBtn").textContent=`💾 Lagre resultater for runde ${r+1}`;
+    document.getElementById("progressBar").style.width=`${((r+1)/state.roundCount)*100}%`;
+    document.getElementById("roundPct").textContent=`${Math.round(((r+1)/state.roundCount)*100)} %`;
+    document.getElementById("roundStatus").textContent=`${state.saved.filter(Boolean).length} av ${state.roundCount} runder lagret`;
+
+    const teammateRounds=generateTeammateRounds(state.playerCount);
     const courts=document.getElementById("courts");
     courts.innerHTML="";
 
-    matchPairing.forEach((pairing,courtIdx)=>{
-      const pA=teammateRounds[r][pairing[0]];
-      const pB=teammateRounds[r][pairing[1]];
+    for(let courtIdx=0;courtIdx<state.courtCount;courtIdx++){
+      const pairA=teammateRounds[r][courtIdx*2];
+      const pairB=teammateRounds[r][courtIdx*2+1];
       const sc=state.scores[r][courtIdx];
 
       const card=document.createElement("div");
@@ -483,31 +599,30 @@
           <span>${state.saved[r] ? '<span class="saved-badge">✓ Lagret</span>' : '24 poeng'}</span>
         </div>
         <div class="teams">
-          <div class="team a">${escapeHtml(playerName(pA[0]))}<br>+<br>${escapeHtml(playerName(pA[1]))}</div>
+          <div class="team a">${escapeHtml(playerName(pairA[0]))}<br>+<br>${escapeHtml(playerName(pairA[1]))}</div>
           <div class="vs">VS</div>
-          <div class="team b">${escapeHtml(playerName(pB[0]))}<br>+<br>${escapeHtml(playerName(pB[1]))}</div>
+          <div class="team b">${escapeHtml(playerName(pairB[0]))}<br>+<br>${escapeHtml(playerName(pairB[1]))}</div>
         </div>
         <div class="scoreline">
           <div class="score-control">
             <button data-score="${courtIdx}-0" data-delta="-1">−</button>
-            <div class="score" id="score-${courtIdx}-0">${sc[0]}</div>
+            <div class="score">${sc[0]}</div>
             <button data-score="${courtIdx}-0" data-delta="1">+</button>
           </div>
           <div class="dash">–</div>
           <div class="score-control">
             <button data-score="${courtIdx}-1" data-delta="-1">−</button>
-            <div class="score" id="score-${courtIdx}-1">${sc[1]}</div>
+            <div class="score">${sc[1]}</div>
             <button data-score="${courtIdx}-1" data-delta="1">+</button>
           </div>
         </div>`;
       courts.appendChild(card);
-    });
+    }
 
     courts.querySelectorAll("[data-score]").forEach(btn=>{
       btn.addEventListener("click",()=>{
         const [court,team]=btn.dataset.score.split("-").map(Number);
-        const delta=Number(btn.dataset.delta);
-        adjustScore(court,team,delta);
+        adjustScore(court,team,Number(btn.dataset.delta));
       });
     });
   }
@@ -526,31 +641,28 @@
   async function saveRound(){
     if(busy) return;
 
-    if(state.players.some(n=>!n)){
-      alert("Registrer og lagre alle 8 spillerne først.");
+    if(state.players.length!==state.playerCount || state.players.some(n=>!n)){
+      alert("Registrer og lagre spillerne først.");
       showPage("players");
       return;
     }
 
-    const roundToSave = currentRound;
-    const scores = state.scores[roundToSave];
+    const roundToSave=currentRound;
+    const courts=state.scores[roundToSave].map(s=>[s[0],s[1]]);
 
-    setBusy(true, `Lagrer runde ${roundToSave+1} …`);
+    setBusy(true,`Lagrer runde ${roundToSave+1} …`);
     try{
-      const data = await apiPost({
+      const data=await apiPost({
         action:"saveRound",
         round:roundToSave+1,
-        court1:[scores[0][0],scores[0][1]],
-        court2:[scores[1][0],scores[1][1]]
+        courts
       });
-
       applyServerData(data);
-      flashButton(document.getElementById("saveRoundBtn"),`✓ Runde ${roundToSave+1} lagret`,`💾 Lagre resultater for runde ${currentRound+1}`);
 
-      const nextUnsaved = state.saved.findIndex(v => !v);
-      if(nextUnsaved !== -1){
-        currentRound = nextUnsaved;
-        setTimeout(()=>{ renderRound(); window.scrollTo({top:0,behavior:"smooth"}); },500);
+      const nextUnsaved=state.saved.findIndex(v=>!v);
+      if(nextUnsaved!==-1){
+        currentRound=nextUnsaved;
+        setTimeout(()=>{renderRound();window.scrollTo({top:0,behavior:"smooth"});},400);
       }
     }catch(err){
       console.error(err);
@@ -564,32 +676,36 @@
     const rows=state.players.map((name,playerIdx)=>({
       idx:playerIdx,
       name:name || `Spiller ${playerIdx+1}`,
-      rounds:Array(7).fill(null),
+      rounds:Array(state.roundCount).fill(null),
       total:0,
       rank:null
     }));
 
-    for(let r=0;r<7;r++){
+    const teammateRounds=generateTeammateRounds(state.playerCount);
+
+    for(let r=0;r<state.roundCount;r++){
       if(!state.saved[r]) continue;
-      matchPairing.forEach((pairing,courtIdx)=>{
-        const pairA=teammateRounds[r][pairing[0]];
-        const pairB=teammateRounds[r][pairing[1]];
+
+      for(let courtIdx=0;courtIdx<state.courtCount;courtIdx++){
+        const pairA=teammateRounds[r][courtIdx*2];
+        const pairB=teammateRounds[r][courtIdx*2+1];
         const [a,b]=state.scores[r][courtIdx];
-        pairA.forEach(p=>{rows[p].rounds[r]=a; rows[p].total+=a;});
-        pairB.forEach(p=>{rows[p].rounds[r]=b; rows[p].total+=b;});
-      });
+
+        pairA.forEach(p=>{rows[p].rounds[r]=a;rows[p].total+=a;});
+        pairB.forEach(p=>{rows[p].rounds[r]=b;rows[p].total+=b;});
+      }
     }
 
-    rows.sort((x,y)=> y.total-x.total || x.name.localeCompare(y.name,"no"));
+    rows.sort((x,y)=>y.total-x.total || x.name.localeCompare(y.name,"no"));
 
-    let previousTotal = null;
-    let previousRank = 0;
-    rows.forEach((row, index) => {
-      if (previousTotal === null || row.total !== previousTotal) {
-        previousRank = index + 1;
-        previousTotal = row.total;
+    let previousTotal=null;
+    let previousRank=0;
+    rows.forEach((row,index)=>{
+      if(previousTotal===null || row.total!==previousTotal){
+        previousRank=index+1;
+        previousTotal=row.total;
       }
-      row.rank = previousRank;
+      row.rank=previousRank;
     });
 
     return rows;
@@ -604,14 +720,14 @@
     if(savedCount===0){
       podium.innerHTML=`<div class="empty" style="grid-column:1/-1;align-self:center">Ingen resultater lagret ennå.</div>`;
     }else{
-      const medalFor = r => r===1 ? "🥇" : r===2 ? "🥈" : r===3 ? "🥉" : "🏅";
-      const slot = (p, cls) => `<div class="podium-person ${cls}">
-          <div class="medal">${medalFor(p.rank)}</div>
-          <div class="name">${escapeHtml(p.name)}</div>
-          <div class="pts">${p.total}</div>
-          <div class="step">${p.rank}</div>
-        </div>`;
-      podium.innerHTML = slot(top[1],"second") + slot(top[0],"first") + slot(top[2],"third");
+      const medalFor=r=>r===1?"🥇":r===2?"🥈":r===3?"🥉":"🏅";
+      const slot=(p,cls)=>`<div class="podium-person ${cls}">
+        <div class="medal">${medalFor(p.rank)}</div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="pts">${p.total}</div>
+        <div class="step">${p.rank}</div>
+      </div>`;
+      podium.innerHTML=slot(top[1],"second")+slot(top[0],"first")+slot(top[2],"third");
     }
 
     if(savedCount===0){
@@ -620,27 +736,30 @@
       return;
     }
 
-    let html=`<table><thead><tr><th>#</th><th class="name">Spiller</th>`;
-    for(let r=1;r<=7;r++) html+=`<th>${r}</th>`;
-    html+=`<th>Totalt</th></tr></thead><tbody>`;
+    let table=`<table><thead><tr><th>#</th><th class="name">Spiller</th>`;
+    for(let r=1;r<=state.roundCount;r++) table+=`<th>${r}</th>`;
+    table+=`<th>Totalt</th></tr></thead><tbody>`;
 
     s.forEach((p,i)=>{
-      html+=`<tr class="${i===0?'top1':i===1?'top2':i===2?'top3':''}">
-        <td><b>${p.rank}</b></td><td class="name">${escapeHtml(p.name)}</td>
+      table+=`<tr class="${i===0?'top1':i===1?'top2':i===2?'top3':''}">
+        <td><b>${p.rank}</b></td>
+        <td class="name">${escapeHtml(p.name)}</td>
         ${p.rounds.map(v=>`<td>${v===null?'–':v}</td>`).join("")}
-        <td class="total">${p.total}</td></tr>`;
+        <td class="total">${p.total}</td>
+      </tr>`;
     });
-    html+=`</tbody></table>`;
-    document.getElementById("resultsTable").innerHTML=html;
+
+    table+=`</tbody></table>`;
+    document.getElementById("resultsTable").innerHTML=table;
 
     const winnerBox=document.getElementById("winnerBox");
-    if(savedCount===7){
+    if(savedCount===state.roundCount){
       const winners=s.filter(p=>p.rank===1);
       const names=winners.map(p=>escapeHtml(p.name)).join(" & ");
-      const label=winners.length>1 ? "Vinnere" : "Vinner";
+      const label=winners.length>1?"Vinnere":"Vinner";
       winnerBox.innerHTML=`<div class="winner">🏆 Gratulerer, ${names}!<br><span style="font-size:13px;font-weight:600">${label} av Padel Cup med ${winners[0].total} poeng.</span></div>`;
     }else{
-      winnerBox.innerHTML=`<div class="mini-note">${savedCount} av 7 runder er registrert.</div>`;
+      winnerBox.innerHTML=`<div class="mini-note">${savedCount} av ${state.roundCount} runder er registrert.</div>`;
     }
   }
 
@@ -664,6 +783,8 @@
   }
 
   document.querySelectorAll(".nav-btn").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
+  document.querySelectorAll(".count-btn").forEach(btn=>btn.addEventListener("click",()=>choosePlayerCount(btn.dataset.count)));
+
   document.getElementById("savePlayersBtn").addEventListener("click",savePlayers);
   document.getElementById("saveRoundBtn").addEventListener("click",saveRound);
 
@@ -671,22 +792,24 @@
     currentRound=Math.max(0,currentRound-1);
     renderRound();
   });
+
   document.getElementById("nextRound").addEventListener("click",()=>{
-    currentRound=Math.min(6,currentRound+1);
+    currentRound=Math.min(state.roundCount-1,currentRound+1);
     renderRound();
   });
 
-  document.getElementById("resetBtn").addEventListener("click", async ()=>{
+  document.getElementById("resetBtn").addEventListener("click",async()=>{
     if(busy) return;
-    const ok = confirm("Er du helt sikker på at du vil starte en ny konkurranse? Alle spillernavn, kampoppsett og resultater i Padel1 blir slettet.");
+
+    const ok=confirm("Er du helt sikker på at du vil starte en ny konkurranse? Alle spillernavn, kampoppsett og resultater i Padel1 blir slettet.");
     if(!ok) return;
 
-    setBusy(true, "Nullstiller …");
+    setBusy(true,"Nullstiller …");
     try{
-      const data = await apiPost({action:"resetTournament"});
-      applyServerData(data);
+      const data=await apiPost({action:"resetTournament"});
+      state=freshState(8);
       currentRound=0;
-      renderRound();
+      applyServerData(data);
       showPage("players");
     }catch(err){
       console.error(err);
@@ -696,9 +819,7 @@
     }
   });
 
-  renderPlayerInputs();
-  renderRound();
-  renderResults();
+  renderAll();
   loadFromGoogle();
 })();
 </script>
